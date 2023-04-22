@@ -50,54 +50,55 @@ def lora_state_dict(model: nn.Module, bias: str = "none") -> Dict[str, torch.Ten
 
 
 def convert_to_lora(
-    module: nn.Module, r: int, lora_alpha: int, lora_dropout: float
+    module: nn.Module, r: int = 0, lora_alpha: int = 1, lora_dropout: float = 0
 ) -> nn.Module:
+    factory_kwargs = lambda: {
+        "r": r,
+        "lora_alpha": lora_alpha,
+        "lora_dropout": lora_dropout,
+        "merge_weights": False,
+        "device": module.weight.data.device,
+        "dtype": module.weight.data.dtype,
+    }
     training = module.training
     module_output = module
-    if isinstance(module, nn.Linear):
+    if type(module) is nn.Linear:
         module_output = Linear(
             module.in_features,
             module.out_features,
-            r=r,
-            lora_alpha=lora_alpha,
-            lora_dropout=lora_dropout,
-            merge_weights=False,
             bias=module.bias is not None,
+            **factory_kwargs(),
         )
         module_output.weight.data.copy_(module.weight.data)
-        module_output.bias.data.copy_(module.bias.data)
+        if module.bias is not None:
+            module_output.bias.data.copy_(module.bias.data)
         module_output.train(training)
-    elif isinstance(module, nn.Conv2d):
+    elif type(module) is nn.Conv2d:
         module_output = Conv2d(
             module.in_channels,
             module.out_channels,
             module.kernel_size,
-            r=r,
-            lora_alpha=lora_alpha,
-            lora_dropout=lora_dropout,
-            merge_weights=False,
             stride=module.stride,
             padding=module.padding,
             dilation=module.dilation,
             groups=module.groups,
             bias=module.bias is not None,
+            **factory_kwargs(),
         )
         module_output.weight.data.copy_(module.weight.data)
-        module_output.bias.data.copy_(module.bias.data)
+        if module.bias is not None:
+            module_output.bias.data.copy_(module.bias.data)
         module_output.train(training)
-    elif isinstance(module, nn.Embedding):
+    elif type(module) is nn.Embedding:
         module_output = Embedding(
             module.num_embeddings,
             module.embedding_dim,
-            r=r,
-            lora_alpha=lora_alpha,
-            lora_dropout=lora_dropout,
-            merge_weights=False,
             padding_idx=module.padding_idx,
             max_norm=module.max_norm,
             norm_type=module.norm_type,
             scale_grad_by_freq=module.scale_grad_by_freq,
             sparse=module.sparse,
+            **factory_kwargs(),
         )
         module_output.weight.data.copy_(module.weight.data)
         module_output.train(training)
@@ -112,16 +113,24 @@ def convert_to_lora(
 
 def convert_from_lora(module: nn.Module) -> nn.Module:
     training = module.training
+    factory_kwargs = lambda: {
+        "device": module.weight.data.device,
+        "dtype": module.weight.data.dtype,
+    }
     module_output = module
-    if isinstance(module, Linear):
+    if type(module) is Linear:
         module_output = nn.Linear(
-            module.in_features, module.out_features, bias=module.bias is not None
+            module.in_features,
+            module.out_features,
+            bias=module.bias is not None,
+            **factory_kwargs(),
         )
         module.eval()
         module_output.weight.data.copy_(module.weight.data)
-        module_output.bias.data.copy_(module.bias.data)
+        if module.bias is not None:
+            module_output.bias.data.copy_(module.bias.data)
         module_output.train(training)
-    elif isinstance(module, Conv2d):
+    elif type(module) is Conv2d:
         module_output = nn.Conv2d(
             module.in_channels,
             module.out_channels,
@@ -131,12 +140,14 @@ def convert_from_lora(module: nn.Module) -> nn.Module:
             dilation=module.dilation,
             groups=module.groups,
             bias=module.bias is not None,
+            **factory_kwargs(),
         )
         module.eval()
         module_output.weight.data.copy_(module.weight.data)
-        module_output.bias.data.copy_(module.bias.data)
+        if module.bias is not None:
+            module_output.bias.data.copy_(module.bias.data)
         module_output.train(training)
-    elif isinstance(module, Embedding):
+    elif type(module) is Embedding:
         module_output = nn.Embedding(
             module.num_embeddings,
             module.embedding_dim,
@@ -145,6 +156,7 @@ def convert_from_lora(module: nn.Module) -> nn.Module:
             norm_type=module.norm_type,
             scale_grad_by_freq=module.scale_grad_by_freq,
             sparse=module.sparse,
+            **factory_kwargs(),
         )
         module.eval()
         module_output.weight.data.copy_(module.weight.data)
